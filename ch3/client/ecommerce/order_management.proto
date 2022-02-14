@@ -5,6 +5,7 @@ option go_package="gRPC_practice/order_management";
 
 service OrderManagement {
     rpc getOrder(OrderID) returns (Order);
+    rpc searchOrders(OrderID) returns (stream Order);
 }
 
 message Order {

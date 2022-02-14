@@ -2,7 +2,8 @@ package ecommerce
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"strings"
 
 	pb "github.com/HTaeha/gRPC_practice/ch3/server/ecommerce/order_management"
 	"google.golang.org/grpc/codes"
@@ -18,7 +19,7 @@ func (s *Server) Init() {
 	if s.orderMap == nil {
 		s.orderMap = make(map[string]*pb.Order)
 	}
-	items := []string{}
+	items := []string{"wejfo"}
 	s.orderMap["first"] = &pb.Order{
 		Id:          "0",
 		Items:       items,
@@ -35,11 +36,30 @@ func (s *Server) Init() {
 	}
 }
 func (s *Server) GetOrder(ctx context.Context, in *pb.OrderID) (*pb.Order, error) {
-	s.Init()
-	log.Printf("server: %s, %s", s.orderMap, in)
+	// log.Printf("server: %s, %s", s.orderMap, in)
 	value, exists := s.orderMap[in.Value]
 	if exists {
 		return value, status.New(codes.OK, "").Err()
 	}
 	return nil, status.Errorf(codes.NotFound, "Order does not exist.", in.Value)
+}
+
+func (s *Server) SearchOrder(orderID *pb.OrderID, stream pb.OrderManagement_SearchOrdersServer) error {
+	for key, order := s.orderMap {
+		log.Print(key, order)
+		for _, itemStr := range order.Items {
+			log.Print(itemStr)
+			if strings.Contains(
+				itemStr, searchQuery.Value
+			){
+				err := stream.Send(*order)
+				if err != nil {
+					return fmt.Errorf("error sending message to stream : %v", err)
+				}
+				log.Print("Matching Order Found : " + key)
+				break
+			}
+		}
+	}
+	return nil
 }

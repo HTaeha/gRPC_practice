@@ -1,0 +1,20 @@
+syntax = "proto3";
+package ecommerce;
+
+option go_package="gRPC_practice/order_management";
+
+service OrderManagement {
+    rpc getOrder(OrderID) returns (Order);
+}
+
+message Order {
+    string id = 1;
+    repeated string items = 2;
+    string description = 3;
+    float price = 4;
+    string destination = 5;
+}
+
+message OrderID {
+    string value = 1;
+}

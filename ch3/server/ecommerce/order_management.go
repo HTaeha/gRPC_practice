@@ -3,6 +3,8 @@ package ecommerce
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"strings"
 
 	pb "github.com/HTaeha/gRPC_practice/ch3/server/ecommerce/order_management"
@@ -19,7 +21,7 @@ func (s *Server) Init() {
 	if s.orderMap == nil {
 		s.orderMap = make(map[string]*pb.Order)
 	}
-	items := []string{"wejfo"}
+	items := []string{"item1", "item2", "item3"}
 	s.orderMap["first"] = &pb.Order{
 		Id:          "0",
 		Items:       items,
@@ -35,6 +37,7 @@ func (s *Server) Init() {
 		Destination: "Destination",
 	}
 }
+
 func (s *Server) GetOrder(ctx context.Context, in *pb.OrderID) (*pb.Order, error) {
 	// log.Printf("server: %s, %s", s.orderMap, in)
 	value, exists := s.orderMap[in.Value]
@@ -44,15 +47,13 @@ func (s *Server) GetOrder(ctx context.Context, in *pb.OrderID) (*pb.Order, error
 	return nil, status.Errorf(codes.NotFound, "Order does not exist.", in.Value)
 }
 
-func (s *Server) SearchOrder(orderID *pb.OrderID, stream pb.OrderManagement_SearchOrdersServer) error {
-	for key, order := s.orderMap {
+func (s *Server) SearchOrders(orderID *pb.OrderID, stream pb.OrderManagement_SearchOrdersServer) error {
+	for key, order := range s.orderMap {
 		log.Print(key, order)
 		for _, itemStr := range order.Items {
 			log.Print(itemStr)
-			if strings.Contains(
-				itemStr, searchQuery.Value
-			){
-				err := stream.Send(*order)
+			if strings.Contains(itemStr, orderID.Value) {
+				err := stream.Send(order)
 				if err != nil {
 					return fmt.Errorf("error sending message to stream : %v", err)
 				}
@@ -62,4 +63,19 @@ func (s *Server) SearchOrder(orderID *pb.OrderID, stream pb.OrderManagement_Sear
 		}
 	}
 	return nil
+}
+
+func (s *Server) UpdateOrders(stream pb.OrderManagement_UpdateOrdersServer) error {
+	ordersStr := "Updated Order IDs : "
+	for {
+		order, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&pb.OrderID{Value: "Orders processed " + ordersStr})
+		}
+		// Update order
+		s.orderMap[order.Id] = order
+
+		log.Printf("Order ID %s : Updated", order.Id)
+		ordersStr += order.Id + ", "
+	}
 }

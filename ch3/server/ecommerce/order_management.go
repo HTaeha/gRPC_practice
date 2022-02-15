@@ -12,6 +12,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	orderBatchSize = 3
+)
+
 type Server struct {
 	orderMap map[string]*pb.Order
 	pb.UnimplementedOrderManagementServer
@@ -26,15 +30,15 @@ func (s *Server) Init() {
 		Id:          "0",
 		Items:       items,
 		Description: "description",
-		Price:       3.14,
-		Destination: "Destination",
+		Price:       35000,
+		Destination: "seoul",
 	}
 	s.orderMap["second"] = &pb.Order{
 		Id:          "1",
 		Items:       items,
 		Description: "description",
-		Price:       3.14,
-		Destination: "Destination",
+		Price:       5000,
+		Destination: "cheonan",
 	}
 }
 
@@ -77,5 +81,58 @@ func (s *Server) UpdateOrders(stream pb.OrderManagement_UpdateOrdersServer) erro
 
 		log.Printf("Order ID %s : Updated", order.Id)
 		ordersStr += order.Id + ", "
+	}
+}
+
+func (s *Server) ProcessOrders(stream pb.OrderManagement_ProcessOrdersServer) error {
+	batchMarker := 1
+	combinedShipmentMap := make(map[string]*pb.CombinedShipment)
+	for {
+		orderId, err := stream.Recv()
+		log.Printf("Reading Proc order: %s", orderId)
+		if err == io.EOF {
+			// Client has sent all the messages
+			// Send remaining shipments
+			log.Printf("EOF : %s", orderId)
+			for _, comb := range combinedShipmentMap {
+				if err := stream.Send(comb); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+
+		order := s.orderMap[orderId.GetValue()]
+		log.Printf("order : %v", order)
+		destination := order.Destination
+		log.Printf("destination : %v", destination)
+		shipment, found := combinedShipmentMap[destination]
+		log.Printf("shipment, found : %v, %v", shipment, found)
+		if found {
+			shipment.OrdersList = append(shipment.OrdersList, order)
+			combinedShipmentMap[destination] = shipment
+		} else {
+			combShipment := pb.CombinedShipment{Id: "cmb - " + (s.orderMap[orderId.GetValue()].Destination), Status: "Processed!"}
+			combShipment.OrdersList = append(combShipment.OrdersList, order)
+			combinedShipmentMap[destination] = &combShipment
+			log.Print(len(combShipment.OrdersList), combShipment.GetId())
+		}
+
+		if batchMarker == orderBatchSize {
+			for _, comb := range combinedShipmentMap {
+				log.Printf("Shipping : %v -> %v", comb.Id, len(comb.OrdersList))
+				if err := stream.Send(comb); err != nil {
+					return err
+				}
+			}
+			batchMarker = 0
+			combinedShipmentMap = make(map[string]*pb.CombinedShipment)
+		} else {
+			batchMarker++
+		}
 	}
 }

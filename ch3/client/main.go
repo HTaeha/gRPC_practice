@@ -121,7 +121,6 @@ func main() {
 	// channel <- struct{}{}
 	log.Printf("channel : %v", <-channel)
 	log.Printf("channel : %v", <-channel)
-	log.Printf("channel : %v", <-channel)
 }
 
 func asyncClientBidirectionalRPC(streamProcOrder pb.OrderManagement_ProcessOrdersClient, c chan *pb.CombinedShipment) {
